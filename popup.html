@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Ukrainian TTS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #ff0000;
+      --primary-hover: #cc0000;
+      --text-color: #0f0f0f;
+      --secondary-text: #606060;
+      --bg-color: #ffffff;
+      --secondary-bg: #f2f2f2;
+      --border-color: #e5e5e5;
+      --toggle-active: #065fd4;
+      --success-color: #2e7d32;
+      --error-color: #c62828;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 320px;
+      font-family: 'Roboto', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    .header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-icon {
+      width: 28px;
+      height: 28px;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    .container {
+      padding: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+
+    label {
+      font-size: 15px;
+      font-weight: 500;
+      display: block;
+      margin-bottom: 8px;
+      color: var(--text-color);
+    }
+    
+    /* Стиль перемикача */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .3s;
+      border-radius: 24px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: var(--toggle-active);
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+    
+    /* Селекти та інші елементи */
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background-color: white;
+      font-size: 14px;
+      color: var(--text-color);
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23606060'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 20px;
+    }
+    
+    select:focus {
+      outline: none;
+      border-color: var(--toggle-active);
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+    
+    button:hover {
+      background-color: var(--primary-hover);
+    }
+    
+    .slider-container {
+      margin-top: 12px;
+    }
+    
+    .slider-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: var(--secondary-text);
+    }
+    
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      -webkit-appearance: none;
+      background: #ddd;
+      border-radius: 2px;
+      outline: none;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--toggle-active);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    
+    .status {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      text-align: center;
+      background-color: var(--secondary-bg);
+      transition: all 0.3s;
+    }
+    
+    .status.error {
+      background-color: #ffebee;
+      color: var(--error-color);
+    }
+    
+    .status.success {
+      background-color: #e8f5e9;
+      color: var(--success-color);
+    }
+
+    .speed-value {
+      font-weight: 700;
+      color: var(--toggle-active);
+    }
+    
+    .footer {
+      font-size: 11px;
+      text-align: center;
+      color: var(--secondary-text);
+      padding: 8px 16px 16px;
+    }
+    
+    /* Анімація завантаження */
+    @keyframes pulse {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+    
+    .loading {
+      animation: pulse 1.5s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <svg class="header-icon" viewBox="0 0 24 24" fill="white">
+      <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path>
+    </svg>
+    <h1>Озвучення українських субтитрів</h1>
+  </div>
+  
+  <div class="container">
+    <div class="form-group toggle-container">
+      <label for="enabled">Озвучувати субтитри</label>
+      <label class="switch">
+        <input type="checkbox" id="enabled" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    
+    <div class="form-group">
+      <label for="voice">Голос</label>
+      <select id="voice">
+        <option value="uk-UA-PolinaNeural">Поліна (жіночий)</option>
+        <option value="uk-UA-OstapNeural">Остап (чоловічий)</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label for="speed">Швидкість <span id="speed-value" class="speed-value">100%</span></label>
+      <div class="slider-container">
+        <div class="slider-info">
+          <span>100%</span>
+          <span>200%</span>
+        </div>
+        <input type="range" id="speed" min="100" max="200" step="20" value="100">
+      </div>
+    </div>
+    
+    <button id="save">Зберегти налаштування</button>
+    
+    <div id="status" class="status">Готово до роботи</div>
+  </div>
+  
+  <div class="footer">
+    YouTube Ukrainian TTS v1.0
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
