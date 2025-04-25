@@ -1,4 +1,5 @@
-# yt-sub-ext https://github.com/Kostyaov/yt_sub_ext/releases
+# yt-sub-ext 
+https://github.com/Kostyaov/yt_sub_ext/releases
 # YouTube Ukrainian TTS
 
 Розширення для Chrome, яке автоматично озвучує українські субтитри на YouTube використовуючи високоякісну технологію EdgeTTS від Microsoft.
