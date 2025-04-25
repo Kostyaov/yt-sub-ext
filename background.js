@@ -8,6 +8,38 @@ const DEFAULT_SETTINGS = {
   speed: 100
 };
 
+// Шляхи до різних версій іконок
+const ICONS = {
+  active: {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  disabled: {
+    "16": "icons/icon16_disabled.png",
+    "32": "icons/icon32_disabled.png",
+    "48": "icons/icon48_disabled.png",
+    "128": "icons/icon128_disabled.png"
+  },
+  serverError: {
+    "16": "icons/icon16_error.png",
+    "32": "icons/icon32_error.png",
+    "48": "icons/icon48_error.png",
+    "128": "icons/icon128_error.png"
+  }
+};
+
+// Статуси розширення
+const STATUS = {
+  ACTIVE: 'active',
+  DISABLED: 'disabled',
+  SERVER_ERROR: 'serverError'
+};
+
+// Поточний статус розширення
+let extensionStatus = STATUS.ACTIVE;
+
 // Логування ініціалізації
 console.log('Background script запущено');
 
@@ -21,7 +53,63 @@ chrome.runtime.onInstalled.addListener(async () => {
     // У разі помилки встановлюємо значення за замовчуванням
     await chrome.storage.sync.set(DEFAULT_SETTINGS);
   }
+  
+  // Оновлюємо іконку при встановленні розширення
+  updateIcon();
 });
+
+// Функція для перевірки статусу сервера
+async function checkServerStatus() {
+  try {
+    const response = await fetch('http://localhost:3000/', {
+      method: 'GET',
+      timeout: 2000
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.error('Помилка при перевірці статусу сервера:', error);
+    return false;
+  }
+}
+
+// Функція для оновлення іконки
+async function updateIcon() {
+  // Перевіряємо статус сервера
+  const serverActive = await checkServerStatus();
+  
+  // Отримуємо поточні налаштування
+  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  
+  // Визначаємо статус розширення
+  if (!serverActive) {
+    extensionStatus = STATUS.SERVER_ERROR;
+  } else if (!settings.enabled) {
+    extensionStatus = STATUS.DISABLED;
+  } else {
+    extensionStatus = STATUS.ACTIVE;
+  }
+  
+  // Оновлюємо іконку
+  chrome.action.setIcon({ path: ICONS[extensionStatus] });
+  
+  // Оновлюємо текст спливаючої підказки
+  let tooltip = "YouTube Ukrainian TTS";
+  
+  switch (extensionStatus) {
+    case STATUS.SERVER_ERROR:
+      tooltip += " - Сервер не запущено";
+      break;
+    case STATUS.DISABLED:
+      tooltip += " - Вимкнено";
+      break;
+    case STATUS.ACTIVE:
+      tooltip += " - Активно";
+      break;
+  }
+  
+  chrome.action.setTitle({ title: tooltip });
+}
 
 // Обробник повідомлень від content.js
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -55,6 +143,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             action: 'ttsError',
             error: error.message
           });
+          
+          // Оновлюємо іконку, оскільки могла виникнути помилка сервера
+          updateIcon();
         });
     });
     
@@ -108,24 +199,14 @@ function blobToBase64(blob) {
 
 // Обробник налаштувань для встановлення значка розширення
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && changes.enabled) {
-    // Оновлюємо статус значка залежно від стану enabled
-    const enabled = changes.enabled.newValue;
-    
-    if (enabled) {
-      chrome.action.setIcon({ path: {
-        "16": "icons/icon16.png",
-        "32": "icons/icon32.png",
-        "48": "icons/icon48.png",
-        "128": "icons/icon128.png"
-      }});
-    } else {
-      chrome.action.setIcon({ path: {
-        "16": "icons/icon16_disabled.png",
-        "32": "icons/icon32_disabled.png",
-        "48": "icons/icon48_disabled.png",
-        "128": "icons/icon128_disabled.png"
-      }});
-    }
+  if (area === 'sync') {
+    // Оновлюємо іконку при зміні будь-яких налаштувань
+    updateIcon();
   }
 });
+
+// Перевіряємо статус при запуску
+updateIcon();
+
+// Перевіряємо статус сервера кожні 30 секунд
+setInterval(updateIcon, 30000);
