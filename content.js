@@ -121,6 +121,33 @@ function setupSubtitleObserver() {
     return null;
   }
   
+  // Перевірка чи містить текст спеціальні фрази
+  function shouldSkipSubtitle(text) {
+    const lowerText = text.toLowerCase();
+    
+    // Масив фраз для фільтрації
+    const phrasesToSkip = [
+      '[музика]',
+      '(музика)',
+      '[оплески]',
+      '[сміх]',
+      '[двигун ревіння]',
+      '(створено автоматично)',
+      '⚙'
+    ];
+    
+    // Перевіряємо чи текст містить будь-яку з цих фраз
+    for (const phrase of phrasesToSkip) {
+      if (lowerText.includes(phrase)) {
+        log(`Пропускаємо субтитр, що містить "${phrase}"`);
+        return true;
+      }
+    }
+    
+    // Не пропускаємо звичайний текст
+    return false;
+  }
+
   // Обробка зміни субтитрів
   function handleSubtitleChange() {
     // Якщо озвучування вимкнено або вже обробляємо субтитр
@@ -131,21 +158,27 @@ function setupSubtitleObserver() {
     const subtitle = getCurrentSubtitle();
     const now = Date.now();
     
-    // Перевіряємо чи є текст, чи він новий, і чи пройшов мінімальний інтервал
+    // Перевіряємо чи є текст, чи він новий, чи пройшов мінімальний інтервал,
+    // і чи він не належить до спеціальних фраз, які треба пропустити
     if (subtitle && 
-        subtitle !== lastSubtitle && 
-        now - lastSubtitleTime > MIN_SUBTITLE_INTERVAL) {
-      
-      log('Новий субтитр:', subtitle);
-      lastSubtitle = subtitle;
+      subtitle !== lastSubtitle && 
+      now - lastSubtitleTime > MIN_SUBTITLE_INTERVAL &&
+      !shouldSkipSubtitle(subtitle)) {
+    
+    log('Новий субтитр:', subtitle);
+    lastSubtitle = subtitle;
+    lastSubtitleTime = now;
+    isProcessingSubtitle = true;
+    
+    // Відправляємо запит на озвучення
+    chrome.runtime.sendMessage({
+      action: 'speak',
+      text: subtitle
+    });
+    } else if (subtitle && shouldSkipSubtitle(subtitle)) {
+      //log('Пропущено спеціальний субтитр:', subtitle);
+      lastSubtitle = subtitle; // Зберігаємо субтитр як останній, щоб уникнути повторної обробки
       lastSubtitleTime = now;
-      isProcessingSubtitle = true;
-      
-      // Відправляємо запит на озвучення
-      chrome.runtime.sendMessage({
-        action: 'speak',
-        text: subtitle
-      });
     }
   }
   
