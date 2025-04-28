@@ -1,6 +1,9 @@
 // Константи
 const TTS_SERVER_URL = 'http://localhost:3000/speak';
 
+const IS_EDGE = navigator.userAgent.indexOf("Edg") !== -1;
+console.log('Background script запущено. Браузер Edge:', IS_EDGE ? 'Так' : 'Ні');
+
 // Значення за замовчуванням
 const DEFAULT_SETTINGS = {
   enabled: true,
@@ -75,40 +78,44 @@ async function checkServerStatus() {
 
 // Функція для оновлення іконки
 async function updateIcon() {
-  // Перевіряємо статус сервера
-  const serverActive = await checkServerStatus();
+  // Перевіряємо, чи це Edge
+  const isEdge = navigator.userAgent.indexOf("Edg") !== -1;
   
   // Отримуємо поточні налаштування
-  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  const settings = await chrome.storage.sync.get({
+    enabled: true
+  });
   
-  // Визначаємо статус розширення
+  // Якщо це Edge, не перевіряємо сервер, а просто встановлюємо іконку залежно від enabled
+  if (isEdge) {
+    if (settings.enabled) {
+      // Розширення активне (Edge не потребує сервера)
+      chrome.action.setIcon({ path: ICONS.active });
+      chrome.action.setTitle({ title: "YouTube Ukrainian TTS - Активно (Edge)" });
+    } else {
+      // Розширення вимкнене
+      chrome.action.setIcon({ path: ICONS.disabled });
+      chrome.action.setTitle({ title: "YouTube Ukrainian TTS - Вимкнено" });
+    }
+    return;
+  }
+  
+  // Для не-Edge браузерів - виконуємо перевірку сервера
+  const serverActive = await checkServerStatus();
+  
   if (!serverActive) {
-    extensionStatus = STATUS.SERVER_ERROR;
+    // Сервер не запущено
+    chrome.action.setIcon({ path: ICONS.serverError });
+    chrome.action.setTitle({ title: "YouTube Ukrainian TTS - Сервер не запущено" });
   } else if (!settings.enabled) {
-    extensionStatus = STATUS.DISABLED;
+    // Сервер запущено, але розширення вимкнено
+    chrome.action.setIcon({ path: ICONS.disabled });
+    chrome.action.setTitle({ title: "YouTube Ukrainian TTS - Вимкнено" });
   } else {
-    extensionStatus = STATUS.ACTIVE;
+    // Все працює
+    chrome.action.setIcon({ path: ICONS.active });
+    chrome.action.setTitle({ title: "YouTube Ukrainian TTS - Активно" });
   }
-  
-  // Оновлюємо іконку
-  chrome.action.setIcon({ path: ICONS[extensionStatus] });
-  
-  // Оновлюємо текст спливаючої підказки
-  let tooltip = "YouTube Ukrainian TTS";
-  
-  switch (extensionStatus) {
-    case STATUS.SERVER_ERROR:
-      tooltip += " - Сервер не запущено";
-      break;
-    case STATUS.DISABLED:
-      tooltip += " - Вимкнено";
-      break;
-    case STATUS.ACTIVE:
-      tooltip += " - Активно";
-      break;
-  }
-  
-  chrome.action.setTitle({ title: tooltip });
 }
 
 // Обробник повідомлень від content.js
@@ -116,6 +123,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'speak') {
     console.log('Отримано запит на озвучення:', request.text);
     
+    // Якщо це Edge, просто повертаємо (озвучування відбувається в content.js)
+    if (IS_EDGE) {
+      console.log('Використовується Edge, запит проігноровано (озвучування відбувається на стороні контенту)');
+      return true;
+    }
+
     // Спочатку перевіряємо, чи озвучування ввімкнено
     chrome.storage.sync.get(DEFAULT_SETTINGS, (settings) => {
       if (!settings.enabled) {
