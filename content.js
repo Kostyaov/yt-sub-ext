@@ -2,13 +2,124 @@
 const DEBUG = true;
 const MIN_SUBTITLE_INTERVAL = 200; // мінімальний інтервал між субтитрами (мс)
 const INIT_DELAY = 3000; // затримка перед початком роботи (мс)
+const IS_EDGE = navigator.userAgent.indexOf("Edg") !== -1;
+
 
 // Змінні для відстеження стану
+let edgeVoices = [];
 let lastSubtitle = '';
 let lastSubtitleTime = 0;
 let audioPlayer = null;
 let isProcessingSubtitle = false;
 let isEnabled = true; // Значення за замовчуванням, оновлюється з налаштувань
+
+// Отримання українських голосів в Edge
+function getEdgeVoices() {
+  return new Promise((resolve) => {
+    const checkVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length === 0) {
+        // Якщо голоси ще не завантажено, спробуємо ще раз через 100 мс
+        setTimeout(checkVoices, 100);
+        return;
+      }
+      
+      // Фільтруємо українські голоси
+      const ukrainianVoices = voices.filter(voice => 
+        voice.lang.includes('uk') || voice.lang.includes('UA')
+      );
+      
+      resolve(ukrainianVoices);
+    };
+    
+    checkVoices();
+  });
+}
+
+// Функція для відбору голосів в Edge за їх правильними іменами
+function selectVoiceForEdge(voicePreference) {
+  const voices = window.speechSynthesis.getVoices();
+  let selectedVoice = null;
+  
+  // Map імен голосів з EdgeTTS на Web Speech API
+  const voiceMapping = {
+    'uk-UA-PolinaNeural': 'Microsoft Polina Online',
+    'uk-UA-OstapNeural': 'Microsoft Ostap Online'
+  };
+  
+  // Визначаємо, який голос шукати
+  const searchTerm = voiceMapping[voicePreference] || voicePreference;
+  
+  log('Шукаємо голос за запитом:', searchTerm);
+  
+  // Виведемо всі доступні голоси для діагностики
+  if (DEBUG) {
+    log('Доступні голоси:');
+    voices.forEach(voice => {
+      log(`- ${voice.name} (${voice.lang})`);
+    });
+  }
+  
+  // Шукаємо відповідний голос
+  selectedVoice = voices.find(voice => 
+    voice.name.includes(searchTerm) && 
+    (voice.lang.includes('uk') || voice.lang.includes('UA'))
+  );
+  
+  // Якщо не знайдено, беремо будь-який український голос
+  if (!selectedVoice) {
+    log('Не знайдено голос за запитом, шукаємо будь-який український голос');
+    selectedVoice = voices.find(voice => 
+      voice.lang.includes('uk') || voice.lang.includes('UA')
+    );
+  }
+  
+  // Якщо взагалі немає українських голосів, беремо будь-який
+  if (!selectedVoice && voices.length > 0) {
+    log('Українських голосів не знайдено, використовуємо перший доступний');
+    selectedVoice = voices[0];
+  }
+  
+  return selectedVoice;
+}
+
+// Функція для озвучування через Edge
+function speakWithEdge(text, voicePreference = 'uk-UA-PolinaNeural', rate = 1.0) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Зупиняємо поточне озвучування, якщо є
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'uk-UA';
+      utterance.rate = rate;
+      
+      // Вибираємо голос відповідно до налаштувань
+      const selectedVoice = selectVoiceForEdge(voicePreference);
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        log(`Використовується голос: ${selectedVoice.name} (${selectedVoice.lang})`);
+      } else {
+        log('Не знайдено відповідний голос, використовується голос за замовчуванням');
+      }
+      
+      utterance.onend = () => {
+        log('Edge TTS: озвучування завершено');
+        resolve();
+      };
+      
+      utterance.onerror = (error) => {
+        log('Edge TTS: помилка', error);
+        reject(error);
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      log('Edge TTS: виникла помилка', error);
+      reject(error);
+    }
+  });
+}
 
 // Логування з можливістю відключення
 function log(...args) {
@@ -27,6 +138,22 @@ async function initialize() {
     return;
   }
   
+  // Якщо це Edge, ініціалізуємо голоси
+  if (IS_EDGE) {
+    log('Виявлено браузер Edge, отримання голосів...');
+    try {
+      const voices = await getEdgeVoices();
+      log(`Знайдено ${voices.length} українських голосів в Edge`);
+      if (voices.length > 0) {
+        voices.forEach(voice => {
+          log(`- ${voice.name} (${voice.lang})`);
+        });
+      }
+    } catch (error) {
+      log('Помилка при отриманні голосів Edge:', error);
+    }
+  }
+  
   // Завантаження налаштувань
   try {
     const settings = await chrome.storage.sync.get({
@@ -41,17 +168,19 @@ async function initialize() {
     log('Помилка завантаження налаштувань, використовуємо значення за замовчуванням:', error);
   }
   
-  // Створюємо аудіо елемент
-  audioPlayer = new Audio();
-  audioPlayer.addEventListener('ended', () => {
-    log('Аудіо відтворення завершено');
-    isProcessingSubtitle = false;
-  });
-  
-  audioPlayer.addEventListener('error', (e) => {
-    log('Помилка відтворення аудіо:', e);
-    isProcessingSubtitle = false;
-  });
+  // Створюємо аудіо елемент для не-Edge
+  if (!IS_EDGE) {
+    audioPlayer = new Audio();
+    audioPlayer.addEventListener('ended', () => {
+      log('Аудіо відтворення завершено');
+      isProcessingSubtitle = false;
+    });
+    
+    audioPlayer.addEventListener('error', (e) => {
+      log('Помилка відтворення аудіо:', e);
+      isProcessingSubtitle = false;
+    });
+  }
   
   // Починаємо спостереження за субтитрами після затримки
   log(`Чекаємо ${INIT_DELAY}мс перед запуском спостереження...`);
@@ -64,20 +193,23 @@ async function initialize() {
       isEnabled = message.settings.enabled;
     }
     
-    if (message.action === 'playAudio' && message.audioData) {
-      log('Отримано аудіо для відтворення');
-      
-      // Відтворюємо отримане аудіо
-      audioPlayer.src = message.audioData;
-      audioPlayer.play()
-        .then(() => log('Аудіо відтворюється'))
-        .catch(error => {
-          log('Помилка відтворення:', error);
-          isProcessingSubtitle = false;
-        });
-    } else if (message.action === 'ttsError') {
-      log('Помилка TTS:', message.error);
-      isProcessingSubtitle = false;
+    // Лише для не-Edge браузерів
+    if (!IS_EDGE) {
+      if (message.action === 'playAudio' && message.audioData) {
+        log('Отримано аудіо для відтворення');
+        
+        // Відтворюємо отримане аудіо
+        audioPlayer.src = message.audioData;
+        audioPlayer.play()
+          .then(() => log('Аудіо відтворюється'))
+          .catch(error => {
+            log('Помилка відтворення:', error);
+            isProcessingSubtitle = false;
+          });
+      } else if (message.action === 'ttsError') {
+        log('Помилка TTS:', message.error);
+        isProcessingSubtitle = false;
+      }
     }
   });
 }
@@ -149,18 +281,18 @@ function setupSubtitleObserver() {
   }
 
   // Обробка зміни субтитрів
-  function handleSubtitleChange() {
-    // Якщо озвучування вимкнено або вже обробляємо субтитр
-    if (!isEnabled || isProcessingSubtitle) {
-      return;
-    }
-    
-    const subtitle = getCurrentSubtitle();
-    const now = Date.now();
-    
-    // Перевіряємо чи є текст, чи він новий, чи пройшов мінімальний інтервал,
-    // і чи він не належить до спеціальних фраз, які треба пропустити
-    if (subtitle && 
+function handleSubtitleChange() {
+  // Якщо озвучування вимкнено або вже обробляємо субтитр
+  if (!isEnabled || isProcessingSubtitle) {
+    return;
+  }
+  
+  const subtitle = getCurrentSubtitle();
+  const now = Date.now();
+  
+  // Перевіряємо чи є текст, чи він новий, і чи пройшов мінімальний інтервал,
+  // і чи він не належить до спеціальних фраз, які треба пропустити
+  if (subtitle && 
       subtitle !== lastSubtitle && 
       now - lastSubtitleTime > MIN_SUBTITLE_INTERVAL &&
       !shouldSkipSubtitle(subtitle)) {
@@ -170,17 +302,36 @@ function setupSubtitleObserver() {
     lastSubtitleTime = now;
     isProcessingSubtitle = true;
     
-    // Відправляємо запит на озвучення
-    chrome.runtime.sendMessage({
-      action: 'speak',
-      text: subtitle
-    });
-    } else if (subtitle && shouldSkipSubtitle(subtitle)) {
-      //log('Пропущено спеціальний субтитр:', subtitle);
-      lastSubtitle = subtitle; // Зберігаємо субтитр як останній, щоб уникнути повторної обробки
-      lastSubtitleTime = now;
+    // Різна обробка для Edge і не-Edge
+    if (IS_EDGE) {
+      // Отримуємо налаштування голосу та швидкості
+      chrome.storage.sync.get({ 
+        voice: 'uk-UA-PolinaNeural',
+        speed: 100 
+      }, (settings) => {
+        // Відтворюємо з Edge TTS з правильним голосом
+        speakWithEdge(subtitle, settings.voice, settings.speed / 100)
+          .then(() => {
+            isProcessingSubtitle = false;
+          })
+          .catch(error => {
+            log('Помилка озвучування Edge TTS:', error);
+            isProcessingSubtitle = false;
+          });
+      });
+    } else {
+      // Відправляємо запит на озвучення через сервер (існуючий код)
+      chrome.runtime.sendMessage({
+        action: 'speak',
+        text: subtitle
+      });
     }
+  } else if (subtitle && shouldSkipSubtitle(subtitle)) {
+    log('Пропущено спеціальний субтитр:', subtitle);
+    lastSubtitle = subtitle; // Зберігаємо субтитр як останній, щоб уникнути повторної обробки
+    lastSubtitleTime = now;
   }
+}
   
   // Пошук контейнера і налаштування спостереження
   const subtitleContainer = findSubtitleContainer();

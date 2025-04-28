@@ -6,6 +6,11 @@ const speedValue = document.getElementById('speed-value');
 const saveButton = document.getElementById('save');
 const statusDiv = document.getElementById('status');
 
+// функція для перевірки браузера
+function isEdgeBrowser() {
+  return navigator.userAgent.indexOf("Edg") !== -1;
+}
+
 // Функція для оновлення відображення швидкості при зміні слайдера
 speedSlider.addEventListener('input', () => {
   speedValue.textContent = `${speedSlider.value}%`;
@@ -60,18 +65,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     statusDiv.textContent = 'Завантаження налаштувань...';
     statusDiv.className = 'status loading';
     
-    // Перевіряємо статус сервера
-    const serverActive = await checkServerStatus();
-    
-    if (!serverActive) {
-      statusDiv.textContent = 'Сервер не запущено. Запустіть TTS сервер перед використанням.';
-      statusDiv.className = 'status error';
-      // Деактивуємо елементи керування
-      enabledCheckbox.disabled = true;
-      voiceSelect.disabled = true;
-      speedSlider.disabled = true;
-      saveButton.disabled = true;
-      return;
+    // Перевіряємо, чи це Edge
+    const isEdge = isEdgeBrowser();
+
+    // Якщо це не Edge, робимо перевірку сервера як раніше
+    if (!isEdge) {
+      // Перевіряємо статус сервера
+      const serverActive = await checkServerStatus();
+      
+      if (!serverActive) {
+        statusDiv.textContent = 'Сервер не запущено. Запустіть TTS сервер перед використанням.';
+        statusDiv.className = 'status error';
+        // Деактивуємо елементи керування
+        enabledCheckbox.disabled = true;
+        voiceSelect.disabled = true;
+        speedSlider.disabled = true;
+        saveButton.disabled = true;
+        return;
+      }
+    } else {
+      // Якщо це Edge, показуємо спеціальне повідомлення
+      statusDiv.textContent = 'Використовується браузер Edge з вбудованою підтримкою українських голосів';
+      statusDiv.className = 'status success';
     }
     
     // Отримуємо поточні налаштування з chrome.storage.sync
